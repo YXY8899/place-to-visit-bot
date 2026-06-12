@@ -54,11 +54,11 @@ async def start_handler(update: Update, context):
         return
     text = (
         "👋 *Place to Visit Bot*\n\n"
-        "Save places and restaurants you want to visit\\.\n\n"
+        "Save places and restaurants you want to visit\.\n\n"
         "*Commands:*\n"
-        "/add `<place name>` — queue a place for enrichment\n"
+        "/add \<place name\> — queue a place for enrichment\n"
         "/list — show all saved places\n"
-        "/delete `<place name>` — remove a saved place\n"
+        "/delete \<place name\> — remove a saved place\n"
         "/help — show this message"
     )
     await update.message.reply_text(text, parse_mode="MarkdownV2")
@@ -192,10 +192,11 @@ def health():
 def webhook():
     try:
         data = request.get_json(force=True)
+        print(f"Incoming update: {data}", flush=True)
         update = Update.de_json(data, application.bot)
         asyncio.run_coroutine_threadsafe(
             application.process_update(update), _loop
-        ).result()
+        ).result(timeout=25)
     except Exception as e:
         print(f"Webhook error: {e}", flush=True)
     return "ok", 200
