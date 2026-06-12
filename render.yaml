@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: place-to-visit-bot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -k uvicorn.workers.UvicornWorker --workers 1 bot:flask_app
+    envVars:
+      - key: BOT_TOKEN
+        value: placeholder
+      - key: WEBHOOK_URL
+        value: placeholder
+      - key: SUPABASE_URL
+        value: placeholder
+      - key: SUPABASE_KEY
+        value: placeholder
+      - key: ANTHROPIC_API_KEY
+        value: placeholder
+      - key: ALLOWED_USER_IDS
+        value: placeholder
