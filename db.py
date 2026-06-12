@@ -1,56 +1,64 @@
 import os
 
-from supabase import create_client, Client
+import httpx
 
-_client: Client | None = None
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+
+_HEADERS = {
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
+    "Content-Type": "application/json",
+    "Prefer": "return=representation",
+}
 
 
-def _get_client() -> Client:
-    global _client
-    if _client is None:
-        _client = create_client(
-            os.environ["SUPABASE_URL"],
-            os.environ["SUPABASE_KEY"],
-        )
-    return _client
+def _url(table: str) -> str:
+    return f"{SUPABASE_URL}/rest/v1/{table}"
 
 
 def queue_place(name: str):
-    _get_client().table("input").insert({"name": name}).execute()
+    resp = httpx.post(_url("input"), headers=_HEADERS, json={"name": name})
+    resp.raise_for_status()
 
 
 def get_pending() -> list[dict]:
-    result = _get_client().table("input").select("id, name").execute()
-    return [{"id": row["id"], "name": row["name"]} for row in result.data]
+    resp = httpx.get(_url("input"), headers=_HEADERS, params={"select": "id,name"})
+    resp.raise_for_status()
+    return resp.json()
 
 
 def append_place(name: str, maps_link: str, details: str):
-    _get_client().table("places").insert(
-        {"name": name, "maps_link": maps_link, "details": details}
-    ).execute()
+    resp = httpx.post(
+        _url("places"),
+        headers=_HEADERS,
+        json={"name": name, "maps_link": maps_link, "details": details},
+    )
+    resp.raise_for_status()
 
 
 def delete_input_row(row_id: str):
-    _get_client().table("input").delete().eq("id", row_id).execute()
+    resp = httpx.delete(
+        _url("input"), headers=_HEADERS, params={"id": f"eq.{row_id}"}
+    )
+    resp.raise_for_status()
 
 
 def get_all_places() -> list[dict]:
-    result = (
-        _get_client()
-        .table("places")
-        .select("name, maps_link, details")
-        .order("created_at")
-        .execute()
+    resp = httpx.get(
+        _url("places"),
+        headers=_HEADERS,
+        params={"select": "name,maps_link,details", "order": "created_at.asc"},
     )
-    return result.data
+    resp.raise_for_status()
+    return resp.json()
 
 
 def delete_place(name: str) -> bool:
-    result = (
-        _get_client()
-        .table("places")
-        .delete()
-        .ilike("name", name.strip())
-        .execute()
+    resp = httpx.delete(
+        _url("places"),
+        headers=_HEADERS,
+        params={"name": f"ilike.{name.strip()}"},
     )
-    return len(result.data) > 0
+    resp.raise_for_status()
+    return len(resp.json()) > 0
