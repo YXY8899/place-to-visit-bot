@@ -3,7 +3,7 @@ services:
     name: place-to-visit-bot
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn -k uvicorn.workers.UvicornWorker --workers 1 bot:flask_app
+    startCommand: gunicorn --workers 1 bot:flask_app
     envVars:
       - key: BOT_TOKEN
         value: placeholder
