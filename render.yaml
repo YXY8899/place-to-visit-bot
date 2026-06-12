@@ -13,7 +13,5 @@ services:
         value: placeholder
       - key: SUPABASE_KEY
         value: placeholder
-      - key: ANTHROPIC_API_KEY
-        value: placeholder
       - key: ALLOWED_USER_IDS
         value: placeholder
