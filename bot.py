@@ -2,6 +2,7 @@ import asyncio
 import os
 import re
 import threading
+import traceback
 
 from flask import Flask, request
 from telegram import Update
@@ -199,4 +200,5 @@ def webhook():
         ).result(timeout=25)
     except Exception as e:
         print(f"Webhook error: {e}", flush=True)
+        traceback.print_exc()
     return "ok", 200
