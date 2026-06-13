@@ -42,6 +42,9 @@ async def start_command(bot: Bot, chat_id: int):
             "/list — show all saved places\n"
             "/list <tag1>, <tag2> — filter by tags (must match all)\n"
             "/detail <place name> — show full details of a place\n"
+            "/visited <place name> — mark a place as visited\n"
+            "/tags — show all available tags\n"
+            "/pending — show places waiting to be enriched\n"
             "/delete <place name> — remove a place\n"
             "/help — show this message"
         ),
@@ -168,6 +171,64 @@ async def detail_command(bot: Bot, chat_id: int, text: str):
     await bot.send_message(chat_id=chat_id, text="\n".join(lines), parse_mode="MarkdownV2")
 
 
+async def pending_command(bot: Bot, chat_id: int):
+    try:
+        pending = db.get_pending()
+    except Exception:
+        traceback.print_exc()
+        await bot.send_message(chat_id=chat_id, text="Failed to retrieve queue. Please try again.")
+        return
+
+    if not pending:
+        await bot.send_message(chat_id=chat_id, text="No places in the queue.")
+        return
+
+    lines = [f"⏳ *{len(pending)} place(s) pending enrichment:*"]
+    for i, item in enumerate(pending, 1):
+        lines.append(escape_md(f"{i}. {item['name']}"))
+    await bot.send_message(chat_id=chat_id, text="\n".join(lines), parse_mode="MarkdownV2")
+
+
+async def tags_command(bot: Bot, chat_id: int):
+    try:
+        tags = db.get_all_tags()
+    except Exception:
+        traceback.print_exc()
+        await bot.send_message(chat_id=chat_id, text="Failed to retrieve tags. Please try again.")
+        return
+
+    if not tags:
+        await bot.send_message(chat_id=chat_id, text="No tags found. Add some places first.")
+        return
+
+    tag_list = "\n".join(f"• {escape_md(t)}" for t in tags)
+    await bot.send_message(
+        chat_id=chat_id,
+        text=f"🏷 *Available tags:*\n{tag_list}",
+        parse_mode="MarkdownV2",
+    )
+
+
+async def visited_command(bot: Bot, chat_id: int, text: str):
+    parts = text.split(None, 1)
+    if len(parts) < 2 or not parts[1].strip():
+        await bot.send_message(
+            chat_id=chat_id,
+            text="Please provide a place name. Example: /visited Lau Pa Sat",
+        )
+        return
+    name = parts[1].strip()
+    try:
+        marked = db.mark_visited(name)
+        await bot.send_message(
+            chat_id=chat_id,
+            text=f"✅ {name} marked as visited!" if marked else "Place not found.",
+        )
+    except Exception:
+        traceback.print_exc()
+        await bot.send_message(chat_id=chat_id, text="Failed to update place. Please try again.")
+
+
 async def delete_command(bot: Bot, chat_id: int, text: str):
     parts = text.split(None, 1)
     if len(parts) < 2 or not parts[1].strip():
@@ -214,6 +275,12 @@ async def handle_update(data: dict):
             await list_command(bot, chat_id, text)
         elif text.startswith("/detail"):
             await detail_command(bot, chat_id, text)
+        elif text.startswith("/pending"):
+            await pending_command(bot, chat_id)
+        elif text.startswith("/tags"):
+            await tags_command(bot, chat_id)
+        elif text.startswith("/visited"):
+            await visited_command(bot, chat_id, text)
         elif text.startswith("/delete"):
             await delete_command(bot, chat_id, text)
 

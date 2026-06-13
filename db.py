@@ -45,7 +45,7 @@ def delete_input_row(row_id: str):
 
 
 def get_all_places(tags: list[str] | None = None) -> list[dict]:
-    params = {"select": "name,maps_link,details,tags,address,price_range", "order": "created_at.asc"}
+    params = {"select": "name,maps_link,tags,address,price_range", "order": "created_at.asc", "visited": "eq.false"}
     if tags:
         params["tags"] = "cs.{" + ",".join(tags) + "}"
     resp = httpx.get(_url("places"), headers=_HEADERS, params=params)
@@ -62,6 +62,28 @@ def get_place(name: str) -> dict | None:
     resp.raise_for_status()
     results = resp.json()
     return results[0] if results else None
+
+
+def get_all_tags() -> list[str]:
+    resp = httpx.get(_url("places"), headers=_HEADERS, params={"select": "tags", "visited": "eq.false"})
+    resp.raise_for_status()
+    seen = set()
+    for row in resp.json():
+        for tag in (row.get("tags") or []):
+            seen.add(tag)
+    return sorted(seen)
+
+
+def mark_visited(name: str) -> bool:
+    from datetime import datetime, timezone
+    resp = httpx.patch(
+        _url("places"),
+        headers=_HEADERS,
+        params={"name": f"ilike.{name.strip()}"},
+        json={"visited": True, "visited_at": datetime.now(timezone.utc).isoformat()},
+    )
+    resp.raise_for_status()
+    return len(resp.json()) > 0
 
 
 def delete_place(name: str) -> bool:
