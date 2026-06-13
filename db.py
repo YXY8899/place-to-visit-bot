@@ -21,6 +21,8 @@ def _url(table: str) -> str:
 
 def queue_place(name: str):
     resp = httpx.post(_url("input"), headers=_HEADERS, json={"name": name})
+    if not resp.is_success:
+        print(f"[db] queue_place error {resp.status_code}: {resp.text}", flush=True)
     resp.raise_for_status()
 
 
