@@ -44,12 +44,11 @@ def delete_input_row(row_id: str):
     resp.raise_for_status()
 
 
-def get_all_places() -> list[dict]:
-    resp = httpx.get(
-        _url("places"),
-        headers=_HEADERS,
-        params={"select": "name,maps_link,details", "order": "created_at.asc"},
-    )
+def get_all_places(tags: list[str] | None = None) -> list[dict]:
+    params = {"select": "name,maps_link,details,tags,address,price_range", "order": "created_at.asc"}
+    if tags:
+        params["tags"] = "cs.{" + ",".join(tags) + "}"
+    resp = httpx.get(_url("places"), headers=_HEADERS, params=params)
     resp.raise_for_status()
     return resp.json()
 

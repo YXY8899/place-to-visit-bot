@@ -40,6 +40,7 @@ async def start_command(bot: Bot, chat_id: int):
             "Commands:\n"
             "/add <place name> — queue a place\n"
             "/list — show all saved places\n"
+            "/list <tag1>, <tag2> — filter by tags (must match all)\n"
             "/delete <place name> — remove a place\n"
             "/help — show this message"
         ),
@@ -69,19 +70,23 @@ async def add_command(bot: Bot, chat_id: int, text: str):
         )
 
 
-async def list_command(bot: Bot, chat_id: int):
+async def list_command(bot: Bot, chat_id: int, text: str):
+    parts = text.split(None, 1)
+    tags = [t.strip() for t in parts[1].split(",")] if len(parts) > 1 and parts[1].strip() else []
+
     try:
-        places = db.get_all_places()
+        places = db.get_all_places(tags=tags if tags else None)
     except Exception:
         traceback.print_exc()
         await bot.send_message(chat_id=chat_id, text="Failed to retrieve places. Please try again.")
         return
 
     if not places:
-        await bot.send_message(
-            chat_id=chat_id,
-            text="You have no saved places yet. Use /add <name> to get started.",
-        )
+        if tags:
+            tag_str = ", ".join(tags)
+            await bot.send_message(chat_id=chat_id, text=f"No places found with tags: {tag_str}.")
+        else:
+            await bot.send_message(chat_id=chat_id, text="You have no saved places yet. Use /add <name> to get started.")
         return
 
     blocks = []
@@ -89,24 +94,28 @@ async def list_command(bot: Bot, chat_id: int):
         name = place.get("name", "")
         maps_link = place.get("maps_link", "")
         details = place.get("details", "")
+        address = place.get("address", "")
+        price_range = place.get("price_range", "")
+        tags_val = place.get("tags") or []
 
         name_esc = escape_md(name) if name else "Unknown"
         details_esc = escape_md(details) if details else "No details available\\."
+        address_esc = escape_md(address) if address else ""
+        price_esc = escape_md(price_range) if price_range else ""
+        tags_esc = escape_md(", ".join(tags_val)) if tags_val else ""
 
+        lines = [f"📍 *{name_esc}*"]
+        if tags_esc:
+            lines.append(f"🏷 {tags_esc}")
+        if price_esc:
+            lines.append(f"💰 {price_esc}")
+        if address_esc:
+            lines.append(f"📮 {address_esc}")
         if maps_link:
-            block = (
-                f"📍 *{name_esc}*\n"
-                f"🗺 [Open in Google Maps]({maps_link})\n"
-                f"📝 {details_esc}\n"
-                f"────────────────────"
-            )
-        else:
-            block = (
-                f"📍 *{name_esc}*\n"
-                f"📝 {details_esc}\n"
-                f"────────────────────"
-            )
-        blocks.append(block)
+            lines.append(f"🗺 [Open in Google Maps]({maps_link})")
+        lines.append(f"📝 {details_esc}")
+        lines.append("────────────────────")
+        blocks.append("\n".join(lines))
 
     for i in range(0, len(blocks), 5):
         chunk = "\n\n".join(blocks[i : i + 5])
@@ -156,7 +165,7 @@ async def handle_update(data: dict):
         elif text.startswith("/add"):
             await add_command(bot, chat_id, text)
         elif text.startswith("/list"):
-            await list_command(bot, chat_id)
+            await list_command(bot, chat_id, text)
         elif text.startswith("/delete"):
             await delete_command(bot, chat_id, text)
 
