@@ -53,6 +53,17 @@ def get_all_places(tags: list[str] | None = None) -> list[dict]:
     return resp.json()
 
 
+def get_place(name: str) -> dict | None:
+    resp = httpx.get(
+        _url("places"),
+        headers=_HEADERS,
+        params={"select": "name,maps_link,details,tags,address,price_range", "name": f"ilike.{name.strip()}", "limit": "1"},
+    )
+    resp.raise_for_status()
+    results = resp.json()
+    return results[0] if results else None
+
+
 def delete_place(name: str) -> bool:
     resp = httpx.delete(
         _url("places"),
