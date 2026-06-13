@@ -5,8 +5,6 @@ import httpx
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 
-print(f"[db] SUPABASE_URL set: {bool(SUPABASE_URL)}, SUPABASE_KEY length: {len(SUPABASE_KEY)}", flush=True)
-
 _HEADERS = {
     "apikey": SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}",
@@ -21,8 +19,6 @@ def _url(table: str) -> str:
 
 def queue_place(name: str):
     resp = httpx.post(_url("input"), headers=_HEADERS, json={"name": name})
-    if not resp.is_success:
-        print(f"[db] queue_place error {resp.status_code}: {resp.text}", flush=True)
     resp.raise_for_status()
 
 
