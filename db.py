@@ -5,6 +5,8 @@ import httpx
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 
+print(f"[db] SUPABASE_URL set: {bool(SUPABASE_URL)}, SUPABASE_KEY length: {len(SUPABASE_KEY)}", flush=True)
+
 _HEADERS = {
     "apikey": SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}",
