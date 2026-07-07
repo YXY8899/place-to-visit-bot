@@ -8,14 +8,21 @@ NVIDIA_NIM_API_KEY = os.environ.get("NVIDIA_NIM_API_KEY", "")
 
 _MAPS_HEADERS = {"X-Goog-Maps-Solution-ID": "gmp_git_agentskills_v1"}
 
-_nim = OpenAI(
-    base_url="https://integrate.api.nvidia.com/v1",
-    api_key=NVIDIA_NIM_API_KEY,
-)
+_nim: OpenAI | None = None
+
+
+def _get_nim() -> OpenAI:
+    global _nim
+    if _nim is None:
+        _nim = OpenAI(
+            base_url="https://integrate.api.nvidia.com/v1",
+            api_key=NVIDIA_NIM_API_KEY,
+        )
+    return _nim
 
 
 def _parse_location(raw: str) -> str:
-    response = _nim.chat.completions.create(
+    response = _get_nim().chat.completions.create(
         model="z-ai/glm-5.2",
         messages=[
             {

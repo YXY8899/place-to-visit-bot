@@ -1,6 +1,7 @@
 import asyncio
 import os
 import re
+import threading
 import traceback
 
 from flask import Flask, request
@@ -376,7 +377,10 @@ def health():
 def webhook():
     try:
         data = request.get_json(force=True)
-        asyncio.run(handle_update(data))
+        threading.Thread(
+            target=lambda: asyncio.run(handle_update(data)),
+            daemon=True,
+        ).start()
     except Exception:
         traceback.print_exc()
     return "ok", 200
