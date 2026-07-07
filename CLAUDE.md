@@ -28,7 +28,7 @@ Telegram bot for 2 users to log places/restaurants to visit (shared list). Users
 | `SUPABASE_URL` | `https://opnznafqhrldesftmvvw.supabase.co` |
 | `SUPABASE_KEY` | JWT anon key (208 chars) |
 | `ALLOWED_USER_IDS` | Comma-separated Telegram user IDs |
-| `GOOGLE_MAPS_API_KEY` | Demo key — server-side Geocoding API not supported, Distance Matrix + transit works |
+| `GOOGLE_MAPS_API_KEY` | Demo key — supports single-route Routes API (`computeRoutes`) only; Geocoding API and the batch `computeRouteMatrix`/legacy Distance Matrix both reject it (billing/legacy errors) |
 | `NVIDIA_NIM_API_KEY` | NVIDIA NIM API key |
 
 ## Database: Supabase (project: opnznafqhrldesftmvvw)
@@ -79,9 +79,12 @@ RLS is **disabled** on both tables — required, do not re-enable.
 
 **db.py:** All Supabase calls use httpx REST API directly — no supabase-py.
 
-**nearby.py:** NVIDIA NIM (GLM-5.2) normalises informal location input → Geocoding API gets coordinates → Distance Matrix API (transit mode) calculates travel times to all places with addresses → top 3 returned. NIM client is lazy-initialised to avoid startup crash when env var is missing.
+**nearby.py:** NVIDIA NIM (`minimaxai/minimax-m3`) normalises informal location input → OneMap API geocodes it to coordinates → places are pre-filtered to the nearest 6 by straight-line (haversine) distance on `lat`/`lng` → Routes API `computeRoutes` (transit mode) is called once per candidate to get actual travel time → top 3 returned. NIM client is lazy-initialised to avoid startup crash when env var is missing.
 
-**Google Maps demo key limitation:** Server-side Geocoding API returns REQUEST_DENIED. Use Nominatim (OpenStreetMap) for server-side geocoding. Distance Matrix API with transit mode works fine with the demo key.
+**Google Maps demo key limitation (verified by direct testing, not just docs):**
+- Legacy Geocoding API (`maps.googleapis.com/maps/api/geocode/json`) → `REQUEST_DENIED`, billing not enabled. Use OneMap (Singapore-only, free, no key) instead — see `_geocode()` in `nearby.py`.
+- Legacy Distance Matrix API and the modern batch `routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix` → both rejected (legacy-API-disabled / billing-required) even on the demo key.
+- Single-route `routes.googleapis.com/directions/v2:computeRoutes` (transit mode) **does** work on the demo key — this is what `nearby.py` uses, called once per pre-filtered candidate instead of one batch call.
 
 ## Claude Enrichment Routine
 
@@ -106,9 +109,10 @@ RLS is **disabled** on both tables — required, do not re-enable.
 
 ## Known Issues / Gotchas
 
-- Google Maps demo key does NOT support server-side Geocoding API (REQUEST_DENIED) — use Nominatim for geocoding
-- Nominatim rate limit: 1 request/second, requires `User-Agent` header
+- Google Maps demo key does NOT support server-side Geocoding API or the batch Distance Matrix/Route Matrix (all `REQUEST_DENIED`/billing errors) — use OneMap for geocoding and single-route `computeRoutes` (called per-candidate) for transit time, see `nearby.py`
+- Nominatim is NOT used anywhere in this project anymore (dropped for OneMap, both in `nearby.py` and the routine's backfill) — don't reintroduce it for Singapore addresses, it mismatches unit-numbered addresses
+- NVIDIA NIM: the model `z-ai/glm-5.2` is unresponsive on the `integrate.api.nvidia.com` endpoint (confirmed hung 4+ minutes with zero bytes back, both streaming and non-streaming, even with `max_tokens=1`) — `nearby.py` now uses `minimaxai/minimax-m3` instead, which responds in ~5-15s. If NIM calls start hanging again, suspect the model, not the code.
 - supabase-py incompatible with httpx 0.25.2 — never add it back
 - MarkdownV2: always escape with `escape_md()`, never use raw special chars
-- `/nearby` is slow (NIM + Maps API) — background thread prevents timeout
-- `lat`/`lng` backfill incomplete — Nominatim couldn't find ~13 places; these are skipped in `/nearby` distance pre-filter
+- `/nearby` is slow (NIM + Geocoding + up to 6 sequential Routes API calls) — background thread prevents timeout
+- `lat`/`lng` backfill complete — all places geocoded via Singapore's OneMap API (free, no key, keyed off the postal code in `address`). Nominatim was dropped for this specific use: it mishandled unit-numbered SG addresses and once matched a local restaurant to a location in Paris. Routine prompt (`routine_prompt.md`) now geocodes new/backfilled entries via OneMap going forward.

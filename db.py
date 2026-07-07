@@ -45,7 +45,7 @@ def delete_input_row(row_id: str):
 
 
 def get_all_places(tags: list[str] | None = None) -> list[dict]:
-    params = {"select": "name,maps_link,tags,address,price_range", "order": "created_at.asc", "visited": "eq.false"}
+    params = {"select": "name,maps_link,tags,address,price_range,lat,lng", "order": "created_at.asc", "visited": "eq.false"}
     if tags:
         params["tags"] = "cs.{" + ",".join(tags) + "}"
     resp = httpx.get(_url("places"), headers=_HEADERS, params=params)
