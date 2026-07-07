@@ -7,6 +7,7 @@ from flask import Flask, request
 from telegram import Bot, Update
 
 import db
+import nearby as nearby_mod
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "")
@@ -42,6 +43,7 @@ async def start_command(bot: Bot, chat_id: int):
             "/list — show all saved places\n"
             "/list <tag1>, <tag2> — filter by tags (must match all)\n"
             "/detail <place name> — show full details of a place\n"
+            "/nearby <location> — top 3 places by public transit time\n"
             "/visited <place name> — mark a place as visited\n"
             "/tags — show all available tags\n"
             "/pending — show places waiting to be enriched\n"
@@ -171,6 +173,67 @@ async def detail_command(bot: Bot, chat_id: int, text: str):
     await bot.send_message(chat_id=chat_id, text="\n".join(lines), parse_mode="MarkdownV2")
 
 
+async def nearby_command(bot: Bot, chat_id: int, text: str):
+    parts = text.split(None, 1)
+    if len(parts) < 2 or not parts[1].strip():
+        await bot.send_message(
+            chat_id=chat_id,
+            text="Please provide a location. Example: /nearby Bugis MRT",
+        )
+        return
+
+    raw_location = parts[1].strip()
+    await bot.send_message(chat_id=chat_id, text="🔍 Finding nearby places via public transport...")
+
+    try:
+        places = db.get_all_places()
+        parsed_location, results = nearby_mod.find_nearby(raw_location, places, top_n=3)
+    except Exception:
+        traceback.print_exc()
+        await bot.send_message(chat_id=chat_id, text="Failed to find nearby places. Please try again.")
+        return
+
+    if not results:
+        await bot.send_message(
+            chat_id=chat_id,
+            text=f"No nearby places found from {raw_location}. Places need addresses to be searchable.",
+        )
+        return
+
+    blocks = []
+    for i, place in enumerate(results, 1):
+        name = place.get("name", "")
+        maps_link = place.get("maps_link", "")
+        address = place.get("address", "")
+        price_range = place.get("price_range", "")
+        tags_val = place.get("tags") or []
+        duration_text = place.get("duration_text", "")
+
+        name_esc = escape_md(name)
+        address_esc = escape_md(address) if address else ""
+        price_esc = escape_md(price_range) if price_range else ""
+        tags_esc = escape_md(", ".join(tags_val)) if tags_val else ""
+        duration_esc = escape_md(duration_text)
+
+        lines = [f"{i}\\. 📍 *{name_esc}* — 🚌 {duration_esc}"]
+        if tags_esc:
+            lines.append(f"   🏷 {tags_esc}")
+        if price_esc:
+            lines.append(f"   💰 {price_esc}")
+        if address_esc:
+            lines.append(f"   📮 {address_esc}")
+        if maps_link:
+            lines.append(f"   🗺 [Open in Google Maps]({maps_link})")
+        blocks.append("\n".join(lines))
+
+    header = f"🚌 *Top 3 places from {escape_md(parsed_location)}:*\n\n"
+    await bot.send_message(
+        chat_id=chat_id,
+        text=header + "\n\n".join(blocks),
+        parse_mode="MarkdownV2",
+    )
+
+
 async def pending_command(bot: Bot, chat_id: int):
     try:
         pending = db.get_pending()
@@ -275,6 +338,8 @@ async def handle_update(data: dict):
             await list_command(bot, chat_id, text)
         elif text.startswith("/detail"):
             await detail_command(bot, chat_id, text)
+        elif text.startswith("/nearby"):
+            await nearby_command(bot, chat_id, text)
         elif text.startswith("/pending"):
             await pending_command(bot, chat_id)
         elif text.startswith("/tags"):
