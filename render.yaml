@@ -6,12 +6,32 @@ services:
     startCommand: gunicorn --workers 1 bot:flask_app
     envVars:
       - key: BOT_TOKEN
-        value: placeholder
+        sync: false
       - key: WEBHOOK_URL
-        value: placeholder
+        sync: false
       - key: SUPABASE_URL
-        value: placeholder
+        sync: false
       - key: SUPABASE_KEY
-        value: placeholder
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
       - key: ALLOWED_USER_IDS
-        value: placeholder
+        sync: false
+      - key: COUPLE_CHAT_ID
+        sync: false
+      - key: PLACE_TOPIC_ID
+        sync: false
+      - key: CONVERSATION_BOT_TOKEN
+        sync: false
+      - key: CONVERSATION_TOPIC_ID
+        sync: false
+      - key: RPG_BOT_TOKEN
+        sync: false
+      - key: RPG_TOPIC_ID
+        sync: false
+      - key: NVIDIA_NIM_API_KEY
+        sync: false
+      - key: RPG_NIM_MODEL
+        value: minimaxai/minimax-m3
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false

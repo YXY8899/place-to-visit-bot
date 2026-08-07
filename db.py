@@ -57,7 +57,7 @@ def get_place(name: str) -> dict | None:
     resp = httpx.get(
         _url("places"),
         headers=_HEADERS,
-        params={"select": "name,maps_link,details,tags,address,price_range", "name": f"ilike.{name.strip()}", "limit": "1"},
+        params={"select": "name,maps_link,details,tags,address,price_range", "name": f"eq.{name.strip()}", "limit": "1"},
     )
     resp.raise_for_status()
     results = resp.json()
@@ -79,7 +79,7 @@ def mark_visited(name: str) -> bool:
     resp = httpx.patch(
         _url("places"),
         headers=_HEADERS,
-        params={"name": f"ilike.{name.strip()}"},
+        params={"name": f"eq.{name.strip()}"},
         json={"visited": True, "visited_at": datetime.now(timezone.utc).isoformat()},
     )
     resp.raise_for_status()
@@ -90,7 +90,7 @@ def delete_place(name: str) -> bool:
     resp = httpx.delete(
         _url("places"),
         headers=_HEADERS,
-        params={"name": f"ilike.{name.strip()}"},
+        params={"name": f"eq.{name.strip()}"},
     )
     resp.raise_for_status()
     return len(resp.json()) > 0
