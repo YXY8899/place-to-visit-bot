@@ -7,7 +7,8 @@
 | Key | Value |
 |-----|-------|
 | `BOT_TOKEN` | Your Telegram bot token |
-| `CHAT_IDS` | Comma-separated list of chat IDs, e.g. `5942353575,987654321` |
+| `PLACE_CHAT_ID` | `-1004422689747` — the shared Telegram group |
+| `PLACE_TOPIC_ID` | `2` — the **Place to Visit** forum topic |
 
 ---
 
@@ -61,7 +62,7 @@ For any food-related place (Restaurant, Café, Hawker, Bar, Bakery, Dessert, Fin
 
 ## Prompt
 
-You are a place enrichment assistant for a shared wishlist Telegram bot. Two users add place and restaurant names throughout the day. Your job is to:
+You are a place enrichment assistant for a shared wishlist Telegram bot. Two users add place and restaurant names throughout the day in the group's **Place to Visit** topic. Your job is to:
 1. Enrich new entries from the `input` queue
 2. Backfill any existing `places` rows that are missing data in the new columns
 
@@ -121,14 +122,13 @@ curl -s "https://www.onemap.gov.sg/api/common/elastic/search?searchVal=<6-DIGIT-
 SELECT id, name FROM input;
 ```
 
-If the result is empty and there was nothing to backfill, send this Telegram message to each chat ID and stop:
+If the result is empty and there was nothing to backfill, send this Telegram message to the shared group's **Place to Visit** topic and stop:
 
 ```bash
-for CHAT_ID in $(echo $CHAT_IDS | tr ',' ' '); do
-  curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
-    -d chat_id=$CHAT_ID \
-    -d text="📭 No new places to enrich today."
-done
+curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
+  -d chat_id="$PLACE_CHAT_ID" \
+  -d message_thread_id="$PLACE_TOPIC_ID" \
+  --data-urlencode text="📭 No new places to enrich today."
 ```
 
 ---
@@ -193,14 +193,13 @@ DELETE FROM input WHERE id = '<id>';
 
 ### Step 6 — Send Telegram summary
 
-After all steps are complete, send a summary to each chat ID:
+After all steps are complete, send one summary to the shared group's **Place to Visit** topic:
 
 ```bash
-for CHAT_ID in $(echo $CHAT_IDS | tr ',' ' '); do
-  curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
-    -d chat_id=$CHAT_ID \
-    --data-urlencode text="<message>"
-done
+curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
+  -d chat_id="$PLACE_CHAT_ID" \
+  -d message_thread_id="$PLACE_TOPIC_ID" \
+  --data-urlencode text="<message>"
 ```
 
 **Format the message based on the outcome:**
@@ -262,3 +261,4 @@ Always send the Telegram message even if everything failed.
 - Never delete a row from `input` unless the corresponding `places` insert succeeded.
 - Do not create duplicate entries in `places`.
 - Always geocode via OneMap (see **Geocoding**), never Nominatim/OpenStreetMap, for Singapore addresses.
+- Send routine notifications only to `PLACE_CHAT_ID` with `message_thread_id=PLACE_TOPIC_ID`; never send separate direct messages to individual users.

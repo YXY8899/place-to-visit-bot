@@ -1,39 +1,58 @@
-# place-to-visit-bot
+# Couples Telegram Bot Hub
 
-Telegram bot for 2 users to log places/restaurants to visit (shared list). Users queue names via `/add`; a Claude Routine enriches entries daily and writes to Supabase.
+One Render service hosts three topic-scoped Telegram bots for the same two users: Place to Visit, Conversation Spark, and a cooperative two-player AI RPG. The Place bot's Claude Routine still enriches queued entries daily and writes to Supabase.
 
 ## Stack
 
-- Python 3.14 (Render default)
+- Python 3.12 (pinned in `.python-version` for dependency compatibility)
 - `python-telegram-bot==20.7` — webhook mode, `async with Bot(token)` per request
 - `Flask==3.0.3` + `gunicorn==21.2.0` — sync WSGI
 - `openai>=1.0.0` — NVIDIA NIM client (OpenAI-compatible)
 - `httpx` — transitive via PTB, reused for Supabase REST API calls
 - No `supabase-py` — incompatible with PTB's `httpx~=0.25.2`
 
+## Bot Modules
+
+- `bots/places` — existing place queue, list, detail, and nearby commands
+- `bots/conversation` — curated low-pressure conversation prompts
+- `bots/rpg` — persistent two-player, alternating-turn AI adventure
+- `core` — environment configuration, Telegram runtime/helpers, and shared Supabase state
+- `bot.py` — composition root and Gunicorn entry point
+
 ## Deployment
 
 - **Platform:** Render (free tier) — https://place-to-visit-bot.onrender.com
 - **Repo:** https://github.com/YXY8899/place-to-visit-bot
 - **Start command:** `gunicorn --workers 1 bot:flask_app`
-- **Webhook:** registered at startup via `asyncio.run(_set_webhook())`
-- **Webhook handler** runs in a background thread — returns 200 to Telegram immediately, processes async in background to avoid gunicorn worker timeouts
+- **Webhooks:** registered per configured bot at `/webhook/<slug>` with Telegram secret-token verification
+- **Webhook handler:** uses a bounded background executor and returns 200 to Telegram immediately
 
 ## Render Environment Variables
 
 | Key | Notes |
 |-----|-------|
 | `BOT_TOKEN` | Telegram bot token |
+| `CONVERSATION_BOT_TOKEN` | Conversation Spark Telegram bot token |
+| `RPG_BOT_TOKEN` | Two-player RPG Telegram bot token |
+| `COUPLE_CHAT_ID` | Shared Telegram supergroup ID |
+| `PLACE_TOPIC_ID` | Place bot topic ID |
+| `CONVERSATION_TOPIC_ID` | Conversation Spark topic ID |
+| `RPG_TOPIC_ID` | RPG topic ID |
 | `WEBHOOK_URL` | `https://place-to-visit-bot.onrender.com` |
 | `SUPABASE_URL` | `https://opnznafqhrldesftmvvw.supabase.co` |
 | `SUPABASE_KEY` | JWT anon key (208 chars) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-only key for the RLS-protected `bot_state` table |
 | `ALLOWED_USER_IDS` | Comma-separated Telegram user IDs |
 | `GOOGLE_MAPS_API_KEY` | Demo key — supports single-route Routes API (`computeRoutes`) only; Geocoding API and the batch `computeRouteMatrix`/legacy Distance Matrix both reject it (billing/legacy errors) |
 | `NVIDIA_NIM_API_KEY` | NVIDIA NIM API key |
 
 ## Database: Supabase (project: opnznafqhrldesftmvvw)
 
-RLS is **disabled** on both tables — required, do not re-enable.
+RLS remains disabled on the existing `input` and `places` tables. It is enabled with no public policies on `bot_state`, which is accessed only through the server-held service-role key.
+
+### `bot_state` table (Conversation Spark and RPG state)
+
+Apply `migrations/001_bot_state.sql` before enabling either new bot.
 
 ### `input` table (queue)
 | Column | Type |
@@ -75,7 +94,7 @@ RLS is **disabled** on both tables — required, do not re-enable.
 
 ## Key Architecture Decisions
 
-**Webhook pattern:** `async with Bot(token=BOT_TOKEN) as bot` inside `asyncio.run()` per request. Background thread returns 200 immediately.
+**Webhook pattern:** each configured bot uses its own token, handler, topic filter, and signed webhook route. The shared runtime dispatches updates through a bounded executor.
 
 **db.py:** All Supabase calls use httpx REST API directly — no supabase-py.
 
