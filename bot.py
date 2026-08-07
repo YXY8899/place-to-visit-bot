@@ -1,3 +1,6 @@
+Exit code: 0
+Wall time: 0.5 seconds
+Output:
 import asyncio
 import os
 import re
@@ -12,6 +15,17 @@ import nearby as nearby_mod
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "")
+
+
+def optional_int_env(name: str) -> int | None:
+    value = os.environ.get(name, "").strip()
+    return int(value) if value else None
+
+
+# Optional locks for deploying this bot to a single forum topic. Leave either
+# value unset while discovering the IDs, then set both in Render.
+PLACE_CHAT_ID = optional_int_env("PLACE_CHAT_ID")
+PLACE_TOPIC_ID = optional_int_env("PLACE_TOPIC_ID")
 ALLOWED_USERS = set(
     int(uid.strip())
     for uid in os.environ.get("ALLOWED_USER_IDS", "").split(",")
@@ -29,55 +43,67 @@ def escape_md(text: str) -> str:
     return re.sub(r'([\_\*\[\]\(\)\~\`\>\#\+\-\=\|\{\}\.\!])', r'\\\1', text)
 
 
+async def send_message(
+    bot: Bot, chat_id: int, text: str, thread_id: int | None = None, **kwargs
+):
+    """Send a response back into the forum topic that received the command."""
+    if thread_id is not None:
+        kwargs["message_thread_id"] = thread_id
+    await bot.send_message(chat_id=chat_id, text=text, **kwargs)
+
+
 # ---------------------------------------------------------------------------
 # Command handlers
 # ---------------------------------------------------------------------------
 
-async def start_command(bot: Bot, chat_id: int):
-    await bot.send_message(
-        chat_id=chat_id,
+async def start_command(bot: Bot, chat_id: int, thread_id: int | None):
+    await send_message(
+        bot,
+        chat_id,
         text=(
-            "👋 Place to Visit Bot\n\n"
+            "ðŸ‘‹ Place to Visit Bot\n\n"
             "Save places and restaurants you want to visit.\n\n"
             "Commands:\n"
-            "/add <place name> — queue a place\n"
-            "/list — show all saved places\n"
-            "/list <tag1>, <tag2> — filter by tags (must match all)\n"
-            "/detail <place name> — show full details of a place\n"
-            "/nearby <location> — top 3 places by public transit time\n"
-            "/visited <place name> — mark a place as visited\n"
-            "/tags — show all available tags\n"
-            "/pending — show places waiting to be enriched\n"
-            "/delete <place name> — remove a place\n"
-            "/help — show this message"
+            "/add <place name> â€” queue a place\n"
+            "/list â€” show all saved places\n"
+            "/list <tag1>, <tag2> â€” filter by tags (must match all)\n"
+            "/detail <place name> â€” show full details of a place\n"
+            "/nearby <location> â€” top 3 places by public transit time\n"
+            "/visited <place name> â€” mark a place as visited\n"
+            "/tags â€” show all available tags\n"
+            "/pending â€” show places waiting to be enriched\n"
+            "/delete <place name> â€” remove a place\n"
+            "/whereami â€” show this chat and topic IDs\n"
+            "/help â€” show this message"
         ),
+        thread_id=thread_id,
     )
 
 
-async def add_command(bot: Bot, chat_id: int, text: str):
+async def whereami_command(bot: Bot, chat_id: int, thread_id: int | None):
+    await send_message(
+        bot,
+        chat_id,
+        f"Chat ID: {chat_id}\nTopic ID: {thread_id if thread_id is not None else 'General'}",
+        thread_id,
+    )
+
+
+async def add_command(bot: Bot, chat_id: int, thread_id: int | None, text: str):
     parts = text.split(None, 1)
     if len(parts) < 2 or not parts[1].strip():
-        await bot.send_message(
-            chat_id=chat_id,
-            text="Please provide a place name. Example: /add Eiffel Tower",
-        )
+        await send_message(bot, chat_id, "Please provide a place name. Example: /add Eiffel Tower", thread_id)
         return
     name = parts[1].strip()
     try:
         db.queue_place(name)
-        await bot.send_message(
-            chat_id=chat_id,
-            text=f"✅ {name} added to your queue! It will be enriched and saved shortly.",
-        )
+        await send_message(bot, chat_id, f"âœ… {name} added to your queue! It will be enriched and saved shortly.", thread_id)
     except Exception:
         traceback.print_exc()
-        await bot.send_message(
-            chat_id=chat_id,
-            text="Failed to save place. Please try again.",
-        )
+        await send_message(bot, chat_id, "Failed to save place. Please try again.", thread_id)
 
 
-async def list_command(bot: Bot, chat_id: int, text: str):
+async def list_command(bot: Bot, chat_id: int, thread_id: int | None, text: str):
     parts = text.split(None, 1)
     tags = [t.strip() for t in parts[1].split(",")] if len(parts) > 1 and parts[1].strip() else []
 
@@ -85,15 +111,15 @@ async def list_command(bot: Bot, chat_id: int, text: str):
         places = db.get_all_places(tags=tags if tags else None)
     except Exception:
         traceback.print_exc()
-        await bot.send_message(chat_id=chat_id, text="Failed to retrieve places. Please try again.")
+        await send_message(bot, chat_id, "Failed to retrieve places. Please try again.", thread_id)
         return
 
     if not places:
         if tags:
             tag_str = ", ".join(tags)
-            await bot.send_message(chat_id=chat_id, text=f"No places found with tags: {tag_str}.")
+            await send_message(bot, chat_id, f"No places found with tags: {tag_str}.", thread_id)
         else:
-            await bot.send_message(chat_id=chat_id, text="You have no saved places yet. Use /add <name> to get started.")
+            await send_message(bot, chat_id, "You have no saved places yet. Use /add <name> to get started.", thread_id)
         return
 
     blocks = []
@@ -111,41 +137,38 @@ async def list_command(bot: Bot, chat_id: int, text: str):
         price_esc = escape_md(price_range) if price_range else ""
         tags_esc = escape_md(", ".join(tags_val)) if tags_val else ""
 
-        lines = [f"📍 *{name_esc}*"]
+        lines = [f"ðŸ“ *{name_esc}*"]
         if tags_esc:
-            lines.append(f"🏷 {tags_esc}")
+            lines.append(f"ðŸ· {tags_esc}")
         if price_esc:
-            lines.append(f"💰 {price_esc}")
+            lines.append(f"ðŸ’° {price_esc}")
         if address_esc:
-            lines.append(f"📮 {address_esc}")
+            lines.append(f"ðŸ“® {address_esc}")
         if maps_link:
-            lines.append(f"🗺 [Open in Google Maps]({maps_link})")
-        lines.append("────────────────────")
+            lines.append(f"ðŸ—º [Open in Google Maps]({maps_link})")
+        lines.append("â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€")
         blocks.append("\n".join(lines))
 
     for i in range(0, len(blocks), 5):
         chunk = "\n\n".join(blocks[i : i + 5])
-        await bot.send_message(chat_id=chat_id, text=chunk, parse_mode="MarkdownV2")
+        await send_message(bot, chat_id, chunk, thread_id, parse_mode="MarkdownV2")
 
 
-async def detail_command(bot: Bot, chat_id: int, text: str):
+async def detail_command(bot: Bot, chat_id: int, thread_id: int | None, text: str):
     parts = text.split(None, 1)
     if len(parts) < 2 or not parts[1].strip():
-        await bot.send_message(
-            chat_id=chat_id,
-            text="Please provide a place name. Example: /detail Lau Pa Sat",
-        )
+        await send_message(bot, chat_id, "Please provide a place name. Example: /detail Lau Pa Sat", thread_id)
         return
     name = parts[1].strip()
     try:
         place = db.get_place(name)
     except Exception:
         traceback.print_exc()
-        await bot.send_message(chat_id=chat_id, text="Failed to retrieve place. Please try again.")
+        await send_message(bot, chat_id, "Failed to retrieve place. Please try again.", thread_id)
         return
 
     if not place:
-        await bot.send_message(chat_id=chat_id, text=f"No place found matching \"{name}\".")
+        await send_message(bot, chat_id, f"No place found matching \"{name}\".", thread_id)
         return
 
     maps_link = place.get("maps_link", "")
@@ -160,44 +183,43 @@ async def detail_command(bot: Bot, chat_id: int, text: str):
     price_esc = escape_md(price_range) if price_range else ""
     tags_esc = escape_md(", ".join(tags_val)) if tags_val else ""
 
-    lines = [f"📍 *{name_esc}*"]
+    lines = [f"ðŸ“ *{name_esc}*"]
     if tags_esc:
-        lines.append(f"🏷 {tags_esc}")
+        lines.append(f"ðŸ· {tags_esc}")
     if price_esc:
-        lines.append(f"💰 {price_esc}")
+        lines.append(f"ðŸ’° {price_esc}")
     if address_esc:
-        lines.append(f"📮 {address_esc}")
+        lines.append(f"ðŸ“® {address_esc}")
     if maps_link:
-        lines.append(f"🗺 [Open in Google Maps]({maps_link})")
-    lines.append(f"📝 {details_esc}")
+        lines.append(f"ðŸ—º [Open in Google Maps]({maps_link})")
+    lines.append(f"ðŸ“ {details_esc}")
 
-    await bot.send_message(chat_id=chat_id, text="\n".join(lines), parse_mode="MarkdownV2")
+    await send_message(bot, chat_id, "\n".join(lines), thread_id, parse_mode="MarkdownV2")
 
 
-async def nearby_command(bot: Bot, chat_id: int, text: str):
+async def nearby_command(bot: Bot, chat_id: int, thread_id: int | None, text: str):
     parts = text.split(None, 1)
     if len(parts) < 2 or not parts[1].strip():
-        await bot.send_message(
-            chat_id=chat_id,
-            text="Please provide a location. Example: /nearby Bugis MRT",
-        )
+        await send_message(bot, chat_id, "Please provide a location. Example: /nearby Bugis MRT", thread_id)
         return
 
     raw_location = parts[1].strip()
-    await bot.send_message(chat_id=chat_id, text="🔍 Finding nearby places via public transport...")
+    await send_message(bot, chat_id, "ðŸ” Finding nearby places via public transport...", thread_id)
 
     try:
         places = db.get_all_places()
         parsed_location, results = nearby_mod.find_nearby(raw_location, places, top_n=3)
     except Exception:
         traceback.print_exc()
-        await bot.send_message(chat_id=chat_id, text="Failed to find nearby places. Please try again.")
+        await send_message(bot, chat_id, "Failed to find nearby places. Please try again.", thread_id)
         return
 
     if not results:
-        await bot.send_message(
-            chat_id=chat_id,
-            text=f"No nearby places found from {raw_location}. Places need addresses to be searchable.",
+        await send_message(
+            bot,
+            chat_id,
+            f"No nearby places found from {raw_location}. Places need addresses to be searchable.",
+            thread_id,
         )
         return
 
@@ -216,101 +238,81 @@ async def nearby_command(bot: Bot, chat_id: int, text: str):
         tags_esc = escape_md(", ".join(tags_val)) if tags_val else ""
         duration_esc = escape_md(duration_text)
 
-        lines = [f"{i}\\. 📍 *{name_esc}* — 🚌 {duration_esc}"]
+        lines = [f"{i}\\. ðŸ“ *{name_esc}* â€” ðŸšŒ {duration_esc}"]
         if tags_esc:
-            lines.append(f"   🏷 {tags_esc}")
+            lines.append(f"   ðŸ· {tags_esc}")
         if price_esc:
-            lines.append(f"   💰 {price_esc}")
+            lines.append(f"   ðŸ’° {price_esc}")
         if address_esc:
-            lines.append(f"   📮 {address_esc}")
+            lines.append(f"   ðŸ“® {address_esc}")
         if maps_link:
-            lines.append(f"   🗺 [Open in Google Maps]({maps_link})")
+            lines.append(f"   ðŸ—º [Open in Google Maps]({maps_link})")
         blocks.append("\n".join(lines))
 
-    header = f"🚌 *Top 3 places from {escape_md(parsed_location)}:*\n\n"
-    await bot.send_message(
-        chat_id=chat_id,
-        text=header + "\n\n".join(blocks),
-        parse_mode="MarkdownV2",
-    )
+    header = f"ðŸšŒ *Top 3 places from {escape_md(parsed_location)}:*\n\n"
+    await send_message(bot, chat_id, header + "\n\n".join(blocks), thread_id, parse_mode="MarkdownV2")
 
 
-async def pending_command(bot: Bot, chat_id: int):
+async def pending_command(bot: Bot, chat_id: int, thread_id: int | None):
     try:
         pending = db.get_pending()
     except Exception:
         traceback.print_exc()
-        await bot.send_message(chat_id=chat_id, text="Failed to retrieve queue. Please try again.")
+        await send_message(bot, chat_id, "Failed to retrieve queue. Please try again.", thread_id)
         return
 
     if not pending:
-        await bot.send_message(chat_id=chat_id, text="No places in the queue.")
+        await send_message(bot, chat_id, "No places in the queue.", thread_id)
         return
 
-    lines = [f"⏳ *{len(pending)} place(s) pending enrichment:*"]
+    lines = [f"â³ *{len(pending)} place(s) pending enrichment:*"]
     for i, item in enumerate(pending, 1):
         lines.append(escape_md(f"{i}. {item['name']}"))
-    await bot.send_message(chat_id=chat_id, text="\n".join(lines), parse_mode="MarkdownV2")
+    await send_message(bot, chat_id, "\n".join(lines), thread_id, parse_mode="MarkdownV2")
 
 
-async def tags_command(bot: Bot, chat_id: int):
+async def tags_command(bot: Bot, chat_id: int, thread_id: int | None):
     try:
         tags = db.get_all_tags()
     except Exception:
         traceback.print_exc()
-        await bot.send_message(chat_id=chat_id, text="Failed to retrieve tags. Please try again.")
+        await send_message(bot, chat_id, "Failed to retrieve tags. Please try again.", thread_id)
         return
 
     if not tags:
-        await bot.send_message(chat_id=chat_id, text="No tags found. Add some places first.")
+        await send_message(bot, chat_id, "No tags found. Add some places first.", thread_id)
         return
 
-    tag_list = "\n".join(f"• {escape_md(t)}" for t in tags)
-    await bot.send_message(
-        chat_id=chat_id,
-        text=f"🏷 *Available tags:*\n{tag_list}",
-        parse_mode="MarkdownV2",
-    )
+    tag_list = "\n".join(f"â€¢ {escape_md(t)}" for t in tags)
+    await send_message(bot, chat_id, f"ðŸ· *Available tags:*\n{tag_list}", thread_id, parse_mode="MarkdownV2")
 
 
-async def visited_command(bot: Bot, chat_id: int, text: str):
+async def visited_command(bot: Bot, chat_id: int, thread_id: int | None, text: str):
     parts = text.split(None, 1)
     if len(parts) < 2 or not parts[1].strip():
-        await bot.send_message(
-            chat_id=chat_id,
-            text="Please provide a place name. Example: /visited Lau Pa Sat",
-        )
+        await send_message(bot, chat_id, "Please provide a place name. Example: /visited Lau Pa Sat", thread_id)
         return
     name = parts[1].strip()
     try:
         marked = db.mark_visited(name)
-        await bot.send_message(
-            chat_id=chat_id,
-            text=f"✅ {name} marked as visited!" if marked else "Place not found.",
-        )
+        await send_message(bot, chat_id, f"âœ… {name} marked as visited!" if marked else "Place not found.", thread_id)
     except Exception:
         traceback.print_exc()
-        await bot.send_message(chat_id=chat_id, text="Failed to update place. Please try again.")
+        await send_message(bot, chat_id, "Failed to update place. Please try again.", thread_id)
 
 
-async def delete_command(bot: Bot, chat_id: int, text: str):
+async def delete_command(bot: Bot, chat_id: int, thread_id: int | None, text: str):
     parts = text.split(None, 1)
     if len(parts) < 2 or not parts[1].strip():
-        await bot.send_message(
-            chat_id=chat_id,
-            text="Please provide a place name. Example: /delete Eiffel Tower",
-        )
+        await send_message(bot, chat_id, "Please provide a place name. Example: /delete Eiffel Tower", thread_id)
         return
     name = parts[1].strip()
     try:
         deleted = db.delete_place(name)
-        await bot.send_message(
-            chat_id=chat_id,
-            text="Deleted!" if deleted else "Place not found.",
-        )
+        await send_message(bot, chat_id, "Deleted!" if deleted else "Place not found.", thread_id)
     except Exception:
         traceback.print_exc()
-        await bot.send_message(chat_id=chat_id, text="Failed to delete place. Please try again.")
+        await send_message(bot, chat_id, "Failed to delete place. Please try again.", thread_id)
 
 
 # ---------------------------------------------------------------------------
@@ -330,25 +332,33 @@ async def handle_update(data: dict):
 
         text = msg.text.strip()
         chat_id = msg.chat_id
+        thread_id = msg.message_thread_id
+
+        if PLACE_CHAT_ID is not None and chat_id != PLACE_CHAT_ID:
+            return
+        if PLACE_TOPIC_ID is not None and thread_id != PLACE_TOPIC_ID:
+            return
 
         if text.startswith("/start") or text.startswith("/help"):
-            await start_command(bot, chat_id)
+            await start_command(bot, chat_id, thread_id)
+        elif text.startswith("/whereami"):
+            await whereami_command(bot, chat_id, thread_id)
         elif text.startswith("/add"):
-            await add_command(bot, chat_id, text)
+            await add_command(bot, chat_id, thread_id, text)
         elif text.startswith("/list"):
-            await list_command(bot, chat_id, text)
+            await list_command(bot, chat_id, thread_id, text)
         elif text.startswith("/detail"):
-            await detail_command(bot, chat_id, text)
+            await detail_command(bot, chat_id, thread_id, text)
         elif text.startswith("/nearby"):
-            await nearby_command(bot, chat_id, text)
+            await nearby_command(bot, chat_id, thread_id, text)
         elif text.startswith("/pending"):
-            await pending_command(bot, chat_id)
+            await pending_command(bot, chat_id, thread_id)
         elif text.startswith("/tags"):
-            await tags_command(bot, chat_id)
+            await tags_command(bot, chat_id, thread_id)
         elif text.startswith("/visited"):
-            await visited_command(bot, chat_id, text)
+            await visited_command(bot, chat_id, thread_id, text)
         elif text.startswith("/delete"):
-            await delete_command(bot, chat_id, text)
+            await delete_command(bot, chat_id, thread_id, text)
 
 
 # ---------------------------------------------------------------------------
@@ -384,3 +394,4 @@ def webhook():
     except Exception:
         traceback.print_exc()
     return "ok", 200
+
