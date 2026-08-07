@@ -58,20 +58,20 @@ async def start_command(bot: Bot, chat_id: int, thread_id: int | None):
         bot,
         chat_id,
         text=(
-            "ðŸ‘‹ Place to Visit Bot\n\n"
+            "👋 Place to Visit Bot\n\n"
             "Save places and restaurants you want to visit.\n\n"
             "Commands:\n"
-            "/add <place name> â€” queue a place\n"
-            "/list â€” show all saved places\n"
-            "/list <tag1>, <tag2> â€” filter by tags (must match all)\n"
-            "/detail <place name> â€” show full details of a place\n"
-            "/nearby <location> â€” top 3 places by public transit time\n"
-            "/visited <place name> â€” mark a place as visited\n"
-            "/tags â€” show all available tags\n"
-            "/pending â€” show places waiting to be enriched\n"
-            "/delete <place name> â€” remove a place\n"
-            "/whereami â€” show this chat and topic IDs\n"
-            "/help â€” show this message"
+            "/add <place name> — queue a place\n"
+            "/list — show all saved places\n"
+            "/list <tag1>, <tag2> — filter by tags (must match all)\n"
+            "/detail <place name> — show full details of a place\n"
+            "/nearby <location> — top 3 places by public transit time\n"
+            "/visited <place name> — mark a place as visited\n"
+            "/tags — show all available tags\n"
+            "/pending — show places waiting to be enriched\n"
+            "/delete <place name> — remove a place\n"
+            "/whereami — show this chat and topic IDs\n"
+            "/help — show this message"
         ),
         thread_id=thread_id,
     )
@@ -94,7 +94,7 @@ async def add_command(bot: Bot, chat_id: int, thread_id: int | None, text: str):
     name = parts[1].strip()
     try:
         db.queue_place(name)
-        await send_message(bot, chat_id, f"âœ… {name} added to your queue! It will be enriched and saved shortly.", thread_id)
+        await send_message(bot, chat_id, f"✅ {name} added to your queue! It will be enriched and saved shortly.", thread_id)
     except Exception:
         traceback.print_exc()
         await send_message(bot, chat_id, "Failed to save place. Please try again.", thread_id)
@@ -134,16 +134,16 @@ async def list_command(bot: Bot, chat_id: int, thread_id: int | None, text: str)
         price_esc = escape_md(price_range) if price_range else ""
         tags_esc = escape_md(", ".join(tags_val)) if tags_val else ""
 
-        lines = [f"ðŸ“ *{name_esc}*"]
+        lines = [f"📍 *{name_esc}*"]
         if tags_esc:
-            lines.append(f"ðŸ· {tags_esc}")
+            lines.append(f"🏷 {tags_esc}")
         if price_esc:
-            lines.append(f"ðŸ’° {price_esc}")
+            lines.append(f"💰 {price_esc}")
         if address_esc:
-            lines.append(f"ðŸ“® {address_esc}")
+            lines.append(f"📮 {address_esc}")
         if maps_link:
-            lines.append(f"ðŸ—º [Open in Google Maps]({maps_link})")
-        lines.append("â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€")
+            lines.append(f"🗺 [Open in Google Maps]({maps_link})")
+        lines.append("────────────────────")
         blocks.append("\n".join(lines))
 
     for i in range(0, len(blocks), 5):
@@ -180,16 +180,16 @@ async def detail_command(bot: Bot, chat_id: int, thread_id: int | None, text: st
     price_esc = escape_md(price_range) if price_range else ""
     tags_esc = escape_md(", ".join(tags_val)) if tags_val else ""
 
-    lines = [f"ðŸ“ *{name_esc}*"]
+    lines = [f"📍 *{name_esc}*"]
     if tags_esc:
-        lines.append(f"ðŸ· {tags_esc}")
+        lines.append(f"🏷 {tags_esc}")
     if price_esc:
-        lines.append(f"ðŸ’° {price_esc}")
+        lines.append(f"💰 {price_esc}")
     if address_esc:
-        lines.append(f"ðŸ“® {address_esc}")
+        lines.append(f"📮 {address_esc}")
     if maps_link:
-        lines.append(f"ðŸ—º [Open in Google Maps]({maps_link})")
-    lines.append(f"ðŸ“ {details_esc}")
+        lines.append(f"🗺 [Open in Google Maps]({maps_link})")
+    lines.append(f"📝 {details_esc}")
 
     await send_message(bot, chat_id, "\n".join(lines), thread_id, parse_mode="MarkdownV2")
 
@@ -201,7 +201,7 @@ async def nearby_command(bot: Bot, chat_id: int, thread_id: int | None, text: st
         return
 
     raw_location = parts[1].strip()
-    await send_message(bot, chat_id, "ðŸ” Finding nearby places via public transport...", thread_id)
+    await send_message(bot, chat_id, "🔍 Finding nearby places via public transport...", thread_id)
 
     try:
         places = db.get_all_places()
@@ -235,18 +235,18 @@ async def nearby_command(bot: Bot, chat_id: int, thread_id: int | None, text: st
         tags_esc = escape_md(", ".join(tags_val)) if tags_val else ""
         duration_esc = escape_md(duration_text)
 
-        lines = [f"{i}\\. ðŸ“ *{name_esc}* â€” ðŸšŒ {duration_esc}"]
+        lines = [f"{i}\\. 📍 *{name_esc}* — 🚌 {duration_esc}"]
         if tags_esc:
-            lines.append(f"   ðŸ· {tags_esc}")
+            lines.append(f"   🏷 {tags_esc}")
         if price_esc:
-            lines.append(f"   ðŸ’° {price_esc}")
+            lines.append(f"   💰 {price_esc}")
         if address_esc:
-            lines.append(f"   ðŸ“® {address_esc}")
+            lines.append(f"   📮 {address_esc}")
         if maps_link:
-            lines.append(f"   ðŸ—º [Open in Google Maps]({maps_link})")
+            lines.append(f"   🗺 [Open in Google Maps]({maps_link})")
         blocks.append("\n".join(lines))
 
-    header = f"ðŸšŒ *Top 3 places from {escape_md(parsed_location)}:*\n\n"
+    header = f"🚌 *Top 3 places from {escape_md(parsed_location)}:*\n\n"
     await send_message(bot, chat_id, header + "\n\n".join(blocks), thread_id, parse_mode="MarkdownV2")
 
 
@@ -262,7 +262,7 @@ async def pending_command(bot: Bot, chat_id: int, thread_id: int | None):
         await send_message(bot, chat_id, "No places in the queue.", thread_id)
         return
 
-    lines = [f"â³ *{len(pending)} place(s) pending enrichment:*"]
+    lines = [f"⏳ *{len(pending)} place(s) pending enrichment:*"]
     for i, item in enumerate(pending, 1):
         lines.append(escape_md(f"{i}. {item['name']}"))
     await send_message(bot, chat_id, "\n".join(lines), thread_id, parse_mode="MarkdownV2")
@@ -280,8 +280,8 @@ async def tags_command(bot: Bot, chat_id: int, thread_id: int | None):
         await send_message(bot, chat_id, "No tags found. Add some places first.", thread_id)
         return
 
-    tag_list = "\n".join(f"â€¢ {escape_md(t)}" for t in tags)
-    await send_message(bot, chat_id, f"ðŸ· *Available tags:*\n{tag_list}", thread_id, parse_mode="MarkdownV2")
+    tag_list = "\n".join(f"• {escape_md(t)}" for t in tags)
+    await send_message(bot, chat_id, f"🏷 *Available tags:*\n{tag_list}", thread_id, parse_mode="MarkdownV2")
 
 
 async def visited_command(bot: Bot, chat_id: int, thread_id: int | None, text: str):
@@ -292,7 +292,7 @@ async def visited_command(bot: Bot, chat_id: int, thread_id: int | None, text: s
     name = parts[1].strip()
     try:
         marked = db.mark_visited(name)
-        await send_message(bot, chat_id, f"âœ… {name} marked as visited!" if marked else "Place not found.", thread_id)
+        await send_message(bot, chat_id, f"✅ {name} marked as visited!" if marked else "Place not found.", thread_id)
     except Exception:
         traceback.print_exc()
         await send_message(bot, chat_id, "Failed to update place. Please try again.", thread_id)
