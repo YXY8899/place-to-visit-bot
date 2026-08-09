@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Awaitable, Callable
 
 from flask import Flask, abort, jsonify, request
-from telegram import Bot, Message, Update
+from telegram import Bot, BotCommand, Message, Update
 
 
 Handler = Callable[[Bot, Message], Awaitable[None]]
@@ -19,6 +19,7 @@ class BotRegistration:
     token: str
     handler: Handler
     topic_id: int | None = None
+    commands: tuple[tuple[str, str], ...] = ()
 
     @property
     def webhook_secret(self) -> str:
@@ -78,6 +79,13 @@ class BotRuntime:
                         url=f"{self.webhook_url}/webhook/{registration.slug}",
                         secret_token=registration.webhook_secret,
                     )
+                    if registration.commands:
+                        await bot.set_my_commands(
+                            [
+                                BotCommand(command, description)
+                                for command, description in registration.commands
+                            ]
+                        )
                 print(f"Webhook registered for {registration.slug}.", flush=True)
             except Exception:
                 print(

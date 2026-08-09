@@ -19,6 +19,24 @@ from core.config import (
 from core.runtime import BotRegistration, BotRuntime
 
 
+CONVERSATION_COMMANDS = (
+    ("question", "Get a conversation prompt"),
+    ("next", "Replace the current prompt"),
+    ("whereami", "Show this chat and topic IDs"),
+    ("help", "Show help"),
+)
+
+RPG_COMMANDS = (
+    ("newgame", "Start a new adventure"),
+    ("join", "Join as Player 2"),
+    ("act", "Take your turn"),
+    ("status", "Show the current game"),
+    ("endgame", "End the adventure"),
+    ("whereami", "Show this chat and topic IDs"),
+    ("help", "Show help"),
+)
+
+
 if not ALLOWED_USER_IDS:
     raise RuntimeError(
         "ALLOWED_USER_IDS must list the two Telegram user IDs allowed to use the bots."
@@ -32,8 +50,15 @@ runtime = BotRuntime(
             CONVERSATION_BOT_TOKEN,
             handle_conversation,
             CONVERSATION_TOPIC_ID,
+            commands=CONVERSATION_COMMANDS,
         ),
-        BotRegistration("rpg", RPG_BOT_TOKEN, handle_rpg, RPG_TOPIC_ID),
+        BotRegistration(
+            "rpg",
+            RPG_BOT_TOKEN,
+            handle_rpg,
+            RPG_TOPIC_ID,
+            commands=RPG_COMMANDS,
+        ),
     ],
     webhook_url=WEBHOOK_URL,
     chat_id=COUPLE_CHAT_ID,
