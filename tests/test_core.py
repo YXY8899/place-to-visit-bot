@@ -41,6 +41,15 @@ class WebhookRegistrationTest(unittest.TestCase):
         self.assertEqual(len(registration.webhook_secret), 64)
         self.assertNotIn("123:secret", registration.webhook_secret)
 
+    def test_registration_keeps_command_menu(self):
+        registration = BotRegistration(
+            "rpg",
+            "123:secret",
+            _handler,
+            commands=(("help", "Show help"),),
+        )
+        self.assertEqual(registration.commands, (("help", "Show help"),))
+
 
 class SupabaseKeyTest(unittest.TestCase):
     def test_new_secret_key_is_sent_only_as_apikey(self):
