@@ -14,7 +14,7 @@ One Render service hosts three topic-scoped Telegram bots for the same two users
 ## Bot Modules
 
 - `bots/places` — existing place queue, list, detail, and nearby commands
-- `bots/conversation` — curated low-pressure conversation prompts
+- `bots/conversation` — AI-generated low-pressure conversation prompts, with curated fallbacks
 - `bots/rpg` — persistent two-player, alternating-turn AI adventure
 - `core` — environment configuration, Telegram runtime/helpers, and shared Supabase state
 - `bot.py` — composition root and Gunicorn entry point

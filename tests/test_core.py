@@ -1,3 +1,4 @@
+import asyncio
 import unittest
 from unittest.mock import patch
 
@@ -33,6 +34,36 @@ class ConversationQuestionTest(unittest.TestCase):
         self.assertEqual(category, "fun")
         self.assertNotEqual(question, previous)
         self.assertIn(question, QUESTIONS["fun"])
+
+    def test_ai_question_is_used_and_saved_when_available(self):
+        class FakeBot:
+            def __init__(self):
+                self.messages = []
+
+            async def send_message(self, **kwargs):
+                self.messages.append(kwargs)
+
+        class FakeMessage:
+            chat_id = -100123
+            message_thread_id = 42
+
+        bot = FakeBot()
+        message = FakeMessage()
+        with (
+            patch("bots.conversation.handlers.load_state", return_value=None),
+            patch("bots.conversation.handlers.save_state") as save_state,
+            patch(
+                "bots.conversation.handlers._generate_question",
+                return_value="What small moment made you smile this week?",
+            ),
+        ):
+            asyncio.run(
+                __import__("bots.conversation.handlers", fromlist=["question_command"])
+                .question_command(bot, message, "fun")
+            )
+
+        self.assertIn("What small moment made you smile this week?", bot.messages[0]["text"])
+        self.assertEqual(save_state.call_args.args[3]["category"], "fun")
 
 
 class WebhookRegistrationTest(unittest.TestCase):
