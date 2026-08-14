@@ -3,7 +3,7 @@
 One Render service runs three Telegram bots for the same two-person group:
 
 - **Place to Visit** keeps a shared list of places and ranks nearby options by transit time.
-- **Conversation Spark** serves playful, curious, or deeper questions without making the relationship feel like homework.
+- **Conversation Spark** uses AI to create playful, curious, or deeper questions without making the relationship feel like homework.
 - **Two-Player AI RPG** runs a cooperative, turn-based story with an AI game master.
 
 Each bot has its own BotFather token and Telegram topic. They share deployment, access control, Supabase, and webhook infrastructure, but their commands and state remain isolated.

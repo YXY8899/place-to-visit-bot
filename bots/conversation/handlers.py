@@ -1,6 +1,8 @@
+import os
 import secrets
 import traceback
 
+from openai import OpenAI
 from telegram import Bot, Message
 
 from core.state_store import load_state, save_state
@@ -34,6 +36,13 @@ QUESTIONS = {
     ],
 }
 
+NVIDIA_NIM_API_KEY = os.environ.get("NVIDIA_NIM_API_KEY", "")
+CONVERSATION_NIM_MODEL = os.environ.get(
+    "CONVERSATION_NIM_MODEL", "minimaxai/minimax-m3"
+)
+
+_client: OpenAI | None = None
+
 HELP_TEXT = (
     "✨ Conversation Spark\n\n"
     "A low-pressure question bot for getting to know each other.\n\n"
@@ -54,6 +63,54 @@ def _choose_question(category: str, previous: str | None) -> tuple[str, str]:
     return selected_category, secrets.choice(candidates or QUESTIONS[selected_category])
 
 
+def _get_client() -> OpenAI:
+    global _client
+    if not NVIDIA_NIM_API_KEY:
+        raise RuntimeError("NVIDIA_NIM_API_KEY is not configured")
+    if _client is None:
+        _client = OpenAI(
+            base_url="https://integrate.api.nvidia.com/v1",
+            api_key=NVIDIA_NIM_API_KEY,
+            timeout=30,
+        )
+    return _client
+
+
+def _generate_question(category: str, previous: str | None) -> str:
+    category_guidance = {
+        "fun": "playful, imaginative, and easy to answer",
+        "curious": "warm, specific, and good for learning something new",
+        "deep": "reflective but low-pressure, with no expectation to disclose anything personal",
+    }[category]
+    previous_note = f"Avoid repeating this recent question: {previous}" if previous else ""
+    response = _get_client().chat.completions.create(
+        model=CONVERSATION_NIM_MODEL,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Generate one original conversation question for two adults who are less "
+                    "than a year into dating. Keep it kind, inclusive, PG, and free of pressure. "
+                    "Do not ask about sex, trauma, finances, marriage, children, or breakups. "
+                    "Return only the question, with no label, explanation, quotation marks, or markdown."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"Make the question {category_guidance}. {previous_note}".strip()
+                ),
+            },
+        ],
+        temperature=0.9,
+        max_tokens=100,
+    )
+    question = (response.choices[0].message.content or "").strip().strip('"')
+    if not question or len(question) > 500:
+        raise RuntimeError("AI returned an unusable conversation question")
+    return question
+
+
 async def question_command(bot: Bot, message: Message, arguments: str):
     previous = None
     previous_category = None
@@ -65,7 +122,12 @@ async def question_command(bot: Bot, message: Message, arguments: str):
         traceback.print_exc()
 
     requested_category = arguments.lower() or previous_category or ""
-    category, question = _choose_question(requested_category, previous)
+    category, fallback_question = _choose_question(requested_category, previous)
+    try:
+        question = _generate_question(category, previous)
+    except Exception:
+        traceback.print_exc()
+        question = fallback_question
     try:
         save_state(
             "conversation",
