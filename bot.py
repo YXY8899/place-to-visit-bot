@@ -26,12 +26,14 @@ CONVERSATION_COMMANDS = (
     ("help", "Show help"),
 )
 
-RPG_COMMANDS = (
-    ("newgame", "Start a new adventure"),
-    ("join", "Join as Player 2"),
-    ("act", "Take your turn"),
-    ("status", "Show the current game"),
-    ("endgame", "End the adventure"),
+WORD_DUEL_COMMANDS = (
+    ("newword", "Start a new Word Duel"),
+    ("letter", "Guess a letter on your turn"),
+    ("solve", "Solve the word on your turn"),
+    ("status", "Show the current word"),
+    ("scoreboard", "Show all-time scores"),
+    ("rematch", "Start another word"),
+    ("endgame", "End the current word"),
     ("whereami", "Show this chat and topic IDs"),
     ("help", "Show help"),
 )
@@ -57,7 +59,7 @@ runtime = BotRuntime(
             RPG_BOT_TOKEN,
             handle_rpg,
             RPG_TOPIC_ID,
-            commands=RPG_COMMANDS,
+            commands=WORD_DUEL_COMMANDS,
         ),
     ],
     webhook_url=WEBHOOK_URL,
