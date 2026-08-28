@@ -3,6 +3,7 @@ import unittest
 from unittest.mock import patch
 
 from bots.conversation.handlers import QUESTIONS, _choose_question
+from bots.rpg.handlers import _is_complete, letter_command, solve_command
 from core.runtime import BotRegistration
 from core.state_store import _headers_for
 from core.telegram import escape_markdown, parse_command
@@ -64,6 +65,80 @@ class ConversationQuestionTest(unittest.TestCase):
 
         self.assertIn("What small moment made you smile this week?", bot.messages[0]["text"])
         self.assertEqual(save_state.call_args.args[3]["category"], "fun")
+
+
+class WordDuelTest(unittest.TestCase):
+    @staticmethod
+    def _message(user_id: int):
+        class FakeUser:
+            def __init__(self, value: int):
+                self.id = value
+                self.first_name = f"Player {value}"
+                self.username = None
+
+        class FakeMessage:
+            chat_id = -100123
+            message_thread_id = 42
+
+            def __init__(self, value: int):
+                self.from_user = FakeUser(value)
+
+        return FakeMessage(user_id)
+
+    @staticmethod
+    def _bot():
+        class FakeBot:
+            def __init__(self):
+                self.messages = []
+
+            async def send_message(self, **kwargs):
+                self.messages.append(kwargs)
+
+        return FakeBot()
+
+    @staticmethod
+    def _game():
+        return {
+            "active": True,
+            "word": "apple",
+            "guessed": [],
+            "players": [1, 2],
+            "names": {"1": "Player 1", "2": "Player 2"},
+            "starter": 1,
+            "turn": 1,
+            "scores": {"1": 0, "2": 0},
+            "recent_words": ["apple"],
+        }
+
+    def test_correct_letter_keeps_the_current_turn(self):
+        game = self._game()
+        bot = self._bot()
+        with (
+            patch("bots.rpg.handlers.load_state", return_value=game),
+            patch("bots.rpg.handlers.save_state") as save_state,
+        ):
+            asyncio.run(letter_command(bot, self._message(1), "p"))
+
+        self.assertEqual(game["turn"], 1)
+        self.assertIn("p", game["guessed"])
+        self.assertTrue(save_state.called)
+
+    def test_solve_is_rejected_when_it_is_not_the_players_turn(self):
+        game = self._game()
+        bot = self._bot()
+        with (
+            patch("bots.rpg.handlers.load_state", return_value=game),
+            patch("bots.rpg.handlers.save_state") as save_state,
+        ):
+            asyncio.run(solve_command(bot, self._message(2), "apple"))
+
+        self.assertIn("It's Player 1's turn.", bot.messages[0]["text"])
+        save_state.assert_not_called()
+
+    def test_revealing_all_letters_completes_the_word(self):
+        game = self._game()
+        game["guessed"] = ["a", "p", "l", "e"]
+        self.assertTrue(_is_complete(game))
 
 
 class WebhookRegistrationTest(unittest.TestCase):

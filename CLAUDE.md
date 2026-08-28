@@ -1,6 +1,6 @@
 # Couples Telegram Bot Hub
 
-One Render service hosts three topic-scoped Telegram bots for the same two users: Place to Visit, Conversation Spark, and a cooperative two-player AI RPG. The Place bot's Claude Routine still enriches queued entries daily and writes to Supabase.
+One Render service hosts three topic-scoped Telegram bots for the same two users: Place to Visit, Conversation Spark, and Word Duel. The Place bot's Claude Routine still enriches queued entries daily and writes to Supabase.
 
 ## Stack
 
@@ -15,7 +15,7 @@ One Render service hosts three topic-scoped Telegram bots for the same two users
 
 - `bots/places` — existing place queue, list, detail, and nearby commands
 - `bots/conversation` — AI-generated low-pressure conversation prompts, with curated fallbacks
-- `bots/rpg` — persistent two-player, alternating-turn AI adventure
+- `bots/rpg` — persistent two-player Word Duel with turn-locked guesses and AI-selected words
 - `core` — environment configuration, Telegram runtime/helpers, and shared Supabase state
 - `bot.py` — composition root and Gunicorn entry point
 
@@ -50,7 +50,7 @@ One Render service hosts three topic-scoped Telegram bots for the same two users
 
 RLS remains disabled on the existing `input` and `places` tables. It is enabled with no public policies on `bot_state`, which is accessed only through the server-held service-role key.
 
-### `bot_state` table (Conversation Spark and RPG state)
+### `bot_state` table (Conversation Spark and Word Duel state)
 
 Apply `migrations/001_bot_state.sql` before enabling either new bot.
 
